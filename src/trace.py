@@ -21,7 +21,7 @@ class Net(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.dropout(x, training=self.training)
         x = self.fc2(x)
-        return F.log_softmax(x)
+        return F.log_softmax(input=x)
 
 
 train_loader = torch.utils.data.DataLoader(
@@ -45,28 +45,31 @@ train_losses = []
 train_counter = []
 test_losses = []
 test_counter = [i*len(train_loader.dataset) for i in range(n_epochs + 1)]
-def train(epoch):
-    for data, target in tqdm(train_loader, leave=False):
-        optimizer.zero_grad()
-        target = target.cuda()
-        output = network(data.cuda())
-        loss = F.nll_loss(output, target)
-        loss.backward()
-        optimizer.step()
-        # if batch_idx % log_interval == 0:
-        #     # print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-        #     #     epoch, batch_idx * len(data), len(train_loader.dataset),
-        #     #     100. * batch_idx / len(train_loader), loss.item()))
-        #     train_losses.append(loss.item())
-        #     train_counter.append(
-        #         (batch_idx*64) + ((epoch-1)*len(train_loader.dataset)))
-        #     torch.save(network.state_dict(), './model.pth')
-        #     torch.save(optimizer.state_dict(), './optimizer.pth')
 
 
-for epoch in range(0,50):
-    train(epoch)
+def train(epoch, total=100):
+    # for data, target in tqdm(train_loader, leave=False):
+    with tqdm(total=len(train_loader)) as _tqdm:
+        _tqdm.set_description('epoch:{}/{}'.format(epoch+1, total))
+        for data, target in train_loader:
+            optimizer.zero_grad()
+            target = target.cuda()
+            output = network(data.cuda())
+            loss = F.nll_loss(output, target)
+            loss.backward()
+            _tqdm.set_postfix(loss='{:.6f}'.format(loss))
+            _tqdm.update(1)
+            optimizer.step()
+
+        # train_losses.append(loss.item())
+        # train_counter.append(
+        #     (batch_idx*64) + ((epoch-1)*len(train_loader.dataset)))
+        torch.save(network.state_dict(), './model.pth')
+        torch.save(optimizer.state_dict(), './optimizer.pth')
+
+for epoch in range(0, 50):
+    train(epoch, 50)
 
 network.eval()
-trace = torch.jit.trace(network, torch.randn(64,1,28,28).cuda())
+trace = torch.jit.trace(network, torch.randn(64, 1, 28, 28).cuda())
 torch.jit.save(trace, 'model.pth')
